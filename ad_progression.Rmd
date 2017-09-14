@@ -3,13 +3,14 @@ title: "Flexible Modeling of Alzheimer's Disease Progression with I-Splines"
 author:
 - name: Arya A. Pourzanjani
 - name: Benjamin B. Bales
-- name: Linda R. Petzold
-  affiliation: University of California, Santa Barbara
-- name: Michael Harrington
-  affiliation: Huntington Medical Research Institute
-institute:
-  - $^1$University of California, Santa Barbara
-output: html_notebook
+- affiliation: University of California, Santa Barbara
+  name: Linda R. Petzold
+- affiliation: Huntington Medical Research Institute
+  name: Michael Harrington
+institute: $^1$University of California, Santa Barbara
+output:
+  pdf_document: default
+  html_notebook: default
 bibliography: ref.bib
 ---
 
@@ -141,7 +142,7 @@ posterior_plots_bc$c + xlim(0,20) + ggtitle("c: Relative Onset of Biomarker Degr
 
 ### Posterior Analysis of Model Fit
 
-We can now analyze disease progression curves for individuals, as well as the degradation of their biomarkers over time. Note that we center the age by subtracting by the average age of 69.8. This is for numerical reasons.
+With our Stan model fit, we can examine the posterior distribution of disease progression curves for individuals, as well as the degradation of their biomarkers over time. Note that we center the age by subtracting by the average age of 69.8. This is for numerical reasons.
 
 ```{r, fig.width=10,fig.height=3}
 library(stringr)
@@ -162,7 +163,8 @@ master_grid_s <- map(1:dim(shat_posterior_samples)[1], function(i) sample_to_gri
 master_grid_s %>%
   ggplot(aes(grid, shat, group = sample_num, color = as.factor(patient_idx))) +
   geom_line(alpha = 0.1) +
-  facet_grid(. ~ patient_idx, scale = "free")
+  facet_grid(. ~ patient_idx, scale = "free") +
+  scale_color_discrete(name = "Patient ID")
 ```
 
 
@@ -182,15 +184,16 @@ adni10 %>%
   ggplot(aes(AGE, VALUE, color = as.factor(patient_idx))) +
   geom_line(aes(grid, yhat, group = sample_num), alpha = 0.1, data = master_grid) +
   geom_point(color = "black") +
-  facet_grid(BIOMARKER ~ patient_idx, scales = "free")
+  facet_grid(BIOMARKER ~ patient_idx, scales = "free") +
+  scale_color_discrete(name = "Patient ID")
 ```
-The linear fit does a reasonable job of capturing each individuals progression of biomarkers over time. However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients progress at the same rate all the time. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need a way to more flexibly model monotonic functions of age. For this we turn to I-Splines.
+The linear fit does a reasonable job of capturing each individuals progression of biomarkers over time. However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients' disease statuses continuosly progress at the same rate. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need to be able to flexibly model monotonic functions of age. For this we turn to I-Splines.
 
 # I-Splines
 
 I-Splines are a flexible and adjustable set of monotone basis functions used to model monotonic functions [@ramsay1988monotone]. By taking a linear combination of these functions, and constraining the coefficients to be positive, one can flexibly model a wide class of monotone functions. Similarly, one can model increasing functions with a range from 0 to 1, by taking a linear combination of the I-Splines where the coefficients are constrained to sum to one.
 
-To our knowledge, the only other known method for flexibly modeling monotone functions are monotone Gaussian Processes [@riihimaki2010gaussian], which were used by @lorenzi2017disease. This method relies on constraining the Gaussian Process to have a positive derivative at a set number of points, which then usually forces the function to monotone. While attractive, the method may not return true monotone functions and it is not clear how to select the points where the derivative should be positive. Furthermore, monotone Gaussian Processes are inferred using EP, whereas for our goals we sought to implement our model in Stan and infer using HMC.
+To our knowledge, the only other known method for flexibly modeling monotone functions are monotone Gaussian Processes [@riihimaki2010gaussian], which were used by @lorenzi2017disease. This method relies on constraining the Gaussian Process to have a positive derivative at a set number of points, which then usually forces the function to monotone. While attractive, the method may not return true monotone functions and it is not clear how to select the points where the derivative should be positive. Furthermore, monotone Gaussian Processes are inferred using EP, whereas for our goals we sought to implement our model in Stan and infer using HMC, to obtain samples from the true posterior distribution of our parameters.
 
 ## M-Splines
 
@@ -246,7 +249,7 @@ plot_function_list(I_splines_functions, nodes)
 
 ## Using I-Splines to Represent Monotonic Functions
 
-As mentioned positive linear combinations of I-Splines will be monotone, while symplectic linear combinations will be monotone and range from 0 to 1. We illustrate the latter, by taking different linear combinations of our $D=13$ I-Splines over the domain, where the coefficients are drawn from a uniform Dirichlet distribution, and hence sum to one.
+Positive linear combinations of I-Splines will be monotone, while symplectic linear combinations will be monotone and range from 0 to 1. We illustrate the latter case, by taking different linear combinations of our $D=13$ I-Splines over the domain, where the coefficients are drawn from a uniform Dirichlet distribution, and hence sum to one.
 
 ```{r}
 library(MCMCpack)
@@ -307,7 +310,7 @@ ggplot() +
 With I-Splines in our toolbelt, we can finally expand the linear latent progression model to a more flexible latent progression using I-Splines. We make the following improvements to the linear progression model:
 
 1. We replace the latent disease progression function, $s_i(t)$, to be a positive linear combination of I-Splines rather than a linear function.
-2. We let the standard error of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots sugggest that the random variation in these measurements may different in magnitude from person to person. 
+2. We let the standard error of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots sugggest that the random variation in these measurements may differ in magnitude from person to person. 
 
 ```{r}
 library(rstan)
@@ -330,7 +333,8 @@ master_grid_s <- map(1:dim(shat_posterior_samples)[1], function(i) sample_to_gri
 master_grid_s %>%
   ggplot(aes(grid, shat, group = sample_num, color = as.factor(patient_idx))) +
   geom_line(alpha = 0.1) +
-  facet_grid(. ~ patient_idx, scale = "free")
+  facet_grid(. ~ patient_idx, scale = "free") +
+  scale_color_discrete(name = "Patient ID")
 ```
 
 ```{r, fig.width=10}
@@ -344,7 +348,8 @@ adni10 %>%
   ggplot(aes(AGE, VALUE, color = as.factor(patient_idx))) +
   geom_line(aes(grid, yhat, group = sample_num), alpha = 0.1, data = master_grid) +
   geom_point(color = "black") +
-  facet_grid(BIOMARKER ~ patient_idx, scales = "free")
+  facet_grid(BIOMARKER ~ patient_idx, scales = "free") +
+  scale_color_discrete(name = "Patient ID")
 ```
 
 

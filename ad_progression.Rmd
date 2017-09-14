@@ -15,15 +15,15 @@ bibliography: ref.bib
 
 # Alzheimer's Disease Progression
 
-The progression of Alzheimer's Disease (AD) is characterized by the gradual deterioration of biomarkers and eventually basic memory and decision-making functions (Figure 1). Using these biomarker values and other tests to estimate how far an individual has progressed in the disease is valuable in diagnosis as well as in assessing the efficacy of interventions. Additionally, prediction of how the inidividual will continue to progress is critical in decision making. While it is known that AD progresses monotonically, it is believed that patients with the disease progress at different rates and at different stages of their lives. There is no one standard path of progression for people with the disease, which makes this task difficult. In addition to estimating these paths for an individual given their measurements, it is of clinical and biological significance to be able to understand the order in which certain biomarkers begin to deteriorate and what their distribution might look like for various stages of the disease.
+The progression of Alzheimer's Disease (AD) is characterized by the gradual deterioration of biomarkers and eventual loss of basic memory and decision-making functions (Figure 1). Using these biomarker values and other tests to estimate how far an individual has progressed in the disease is valuable in diagnosis as well as in assessing the efficacy of interventions. Additionally, prediction of how the inidividual will continue to progress is critical in decision making. While it is known that AD only gets worse over time, it is believed that patients with the disease progress at different rates and at different stages of their lives. There is no standard path of progression for people with the disease, which makes estimation of disease severity and future progression difficult. In addition to estimating these paths for an individual given their measurements, it is of clinical and biological significance to be able to understand the order in which certain biomarkers begin to deteriorate and what their distribution might look like for various stages of the disease.
 
-![**Figure 1: As AD continuosly gets more severe, various testable biomarkers begin to degrade in unison, usually following an S-like pattern where degradation is initially slow, then rapidly progresses, then eventually levels out.**](images/disease_progression_modeling.png)
+![**Figure 1: As AD continuosly progresses, various testable biomarkers begin to degrade in unison, usually following an S-like pattern where degradation is initially slow, then rapidly progresses, then eventually levels out.**](images/disease_progression_modeling.png)
 
-To accomplish these, we introduce a probabilistic model that includes a latent, monotonically increasing variable that measures the progression of AD in an individual given their biomarker values. We used a basis of monotonic functions, known as I-splines, to flexibly model this monotonically increasing progression. The model also describes how the biomarker values deteriorate over the progression of AD. We illustrate how we fit the model in Stan to real patient data to realistically capture the progression of AD.
+To accomplish these tasks, we introduce a probabilistic model that includes a latent, monotonically increasing variable that measures the continually worsening progression of AD in an individual given their biomarker values. To flexibly model this monotonically increasing progression, we used a basis of monotonic functions, known as I-splines. The model also describes how, and in what order the biomarker values deteriorate over the progression of AD. We illustrate how we fit the model in Stan to real patient data to realistically capture the progression of AD.
 
 # Data and Exploratory Analysis
 
-To simplify our notebook, we used a pre-cleaned tibble of biomarker data from the publically available Alzheimer's Disease Neuroimaging Initiative (ADNI) dataset. The tibble contains various biomarker measurements for 1,737 patients, as well as their age at the time of measurement. The biomarkers measured include the following:
+To simplify our notebook, we used a pre-cleaned tibble of biomarker data from the publically available Alzheimer's Disease Neuroimaging Initiative (ADNI) dataset. The tibble contains various biomarker measurements for 1,737 patients, as well as their age at the time of measurement.
 
 ```{r}
 library(tidyverse)
@@ -33,14 +33,18 @@ load("data/adni_precleaned.Rdata")
 adni %>% sample_n(10)
 ```
 
-* **ABETA**: Concentration of the amyloid-beta protein in cerebrospinal fluid (CSF), measured in pg/ml. In healthy individuals the harmful protein is actively cleared from the brain in to the CSF. In individuals with AD, the amyloid-beta protein concentrates in the brain to form harmful plaques. Low levels in the CSF indicate the protein is not being cleared from the brain, and is thus an indication of AD.
-* **HIPPO**: Volume of the individual's hippocampal brain region as measured by MRI and normalized to their baseline brain volume. In AD the hippocampus is known to shrink in size as the disease progresses.
+The biomarkers measured include the following:
+
+* **ABETA**: Concentration of the amyloid-beta protein in cerebrospinal fluid (CSF), measured in pg/ml. In healthy individuals this harmful protein is actively cleared from the brain in to the CSF. In individuals with AD, the amyloid-beta protein concentrates in the brain to form harmful plaques. Low levels in the CSF indicate the protein is not being cleared from the brain, and is thus an indication of AD.
+* **HIPPO**: Volume of the individual's hippocampal brain region as measured by MRI and normalized to their baseline brain volume. In AD the hippocampus is known to shrink in size as the disease progresses. Volume are typically estimated using software applied to images like Figure 2.
 * **MMSE**: Mini-Mental State Examination (MMSE) test. A 30-point questionnaire administered by psycologists to assess working memory and brain function in an individual. Patients with AD show lowered scores in MMSE, but unfortunately lowered MMSE scored typically only show once the disease has progressed significantly.
 * **TAU**: Concentration of tau protein in CSF, measured in pg/ml. Tau is a protein that shows up as a byproduct of dead neurons. High tau in the CSF indicates an abundance of dying neurons in the brain.
 
+![**Figure 2: Hippocampus of a graduate student, obtained by MRI.**](images/hippocampus.png)
+
 Currently, staging of AD is accomplished by the thorough review of a patient by a panel of expert doctors. While this diagnosis serves as a gold-standard, the diagnosis process is cumbersome, prone to subjectivity, and typically only includes three discrete levels, which does not represent the continuously progressing nature of AD. These three stages are in order of severity: Normal (NL), Mild Congnitive Impairment (MCI), and Dementia.
 
-Population histograms of these biomarkers during the three stages of the disease reveal a monotonic pattern in the four biomarkers we are considering. This suggests that these biomarkers can be modeled as coming from a single continuous latent variable that we can interpret as being a disease progression score.
+Population histograms of these biomarkers during the three stages of the disease reveal a monotonic pattern in the four biomarkers we are considering. For example ABETA appears to be a biomodal distribution where the lower mode becomes more common as the disease worsens. The distribution of HIPPO appears to shift to the left with increased worsening of AD. These observations lead us to believe that these biomarkers can be modeled as coming from a single continuous latent variable that we can interpret as being a disease progression score.
 
 ```{r, fig.width=7}
 adni %>%
@@ -58,13 +62,14 @@ adni10 %>%
   ggplot(aes(AGE, VALUE, color = as.factor(RID))) +
   geom_point() +
   geom_smooth(se = FALSE, span = 2) +
-  facet_grid(BIOMARKER ~ RID, scales = "free")
+  facet_grid(BIOMARKER ~ RID, scales = "free") +
+  scale_color_discrete(name = "Patient ID")
 ```
 
 
 # Existing Models of Alzheimer's Disease Progression
 
-Existing models of AD progression utilize monotonic functions to capture the progression of biomarkers. @lorenzi2017disease use a monotonic Gaussian Process to model how each biomarker deteriorates over time in the population, and they use ordinary Gaussian Processes for each individual to describe random deviations from this general progression at the individual level. To achieve monotonicity in their Gaussian Processes they use the method proposed by @riihimaki2010gaussian, and fit their model using Expectation Propagation (EP). @jedynak2012computational take a different approach; they posit that the deterioration of individual biomarkers are tied to a single latent state for each patient that increases monotonically over time. This latent variable can thus be used as a disease progression score, representing how far in the disease an individual has progressed.
+Existing models of AD progression utilize monotonic functions to capture the continual worsening of biomarkers. @lorenzi2017disease use a monotonic Gaussian Process to model how each biomarker deteriorates over time in the population, and they use ordinary Gaussian Processes for each individual to describe random deviations from this general progression at the individual level. To achieve monotonicity in their Gaussian Processes they use the method proposed by @riihimaki2010gaussian, and fit their model using Expectation Propagation (EP). @jedynak2012computational take a different approach; they posit that the deterioration of individual biomarkers are tied to a single latent state for each patient that increases monotonically over time. This latent variable can thus be used as a disease progression score, representing how far in the disease an individual has progressed. For our analyses we start with this latter model, and add several improvements, including I-Splines.
 
 ## Linear Latent Progression Model
 
@@ -130,8 +135,8 @@ posterior_plots_bc <- posterior_samples_bc %>%
   map(function(s) s %>% ggplot(aes(Value, group = Biomarker, fill = Biomarker)) + geom_density())
 
 #reveal plots
-posterior_plots_bc$b + ggtitle("b: Rate of Biomarker Degradation")
-posterior_plots_bc$c + xlim(0,20) + ggtitle("c: Relative Onset of Biomarker Degradation")
+posterior_plots_bc$b + ggtitle("b: Rate of Biomarker Degradation") + ylab("Estimated Posterior Density")
+posterior_plots_bc$c + xlim(0,20) + ggtitle("c: Relative Onset of Biomarker Degradation") + ylab("Estimated Posterior Density")
 ```
 
 ### Posterior Analysis of Model Fit
@@ -214,7 +219,7 @@ One can show that the M-Spline basis functions each integrate to one over the sp
 
 ```{r, warning=FALSE, message=FALSE, fig.height=7}
 library(gridExtra)
-source("isplines.R")
+source("R/isplines.R")
 
 nodes <- list(t1=-20,t2=-20,t3=-20,t4=-20,t5=-16,t6=-12,t7=-8,t8=-4,t9=0,t10=4,t11=8,t12=12,t13=16,t14=20,t15=20,t16=20,t17=20) # K=9
 
@@ -281,8 +286,8 @@ sim <- tibble(x = runif(N, -20, 20)) %>% mutate(y = f(x) + rnorm(N, sd = 0.05))
 ggplot(sim, aes(x,y)) + geom_point() + stat_function(fun = f)
 
 #fit in Stan
-dat <- list(N = N, x = sim$x, y = sim$y)
-fit <- stan("isplines.stan", data = dat, chains = 1, iter = 1000)
+dat_ispline <- list(N = N, x = sim$x, y = sim$y)
+fit <- stan("stan/isplines.stan", data = dat_ispline, chains = 1, iter = 1000)
 
 posterior_summary <- (summary(fit, pars = "fhat")$summary)[,c("2.5%", "50%", "97.5%")] %>%
   as_tibble %>%
@@ -299,19 +304,22 @@ ggplot() +
 
 # Modeling AD Progression with I-Splines
 
-With I-Splines in our toolbelt, we can finally expand the linear latent progression model to a more flexible latent progression using I-Splines.
+With I-Splines in our toolbelt, we can finally expand the linear latent progression model to a more flexible latent progression using I-Splines. We make the following improvements to the linear progression model:
+
+1. We replace the latent disease progression function, $s_i(t)$, to be a positive linear combination of I-Splines rather than a linear function.
+2. We let the standard error of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots sugggest that the random variation in these measurements may different in magnitude from person to person. 
 
 ```{r}
 library(rstan)
 
-ispline_progression_fit <- stan("ispline_progression.stan", data = dat, chains = 1, iter = 2000)
+ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000)
 
 ispline_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abeta", "d_hippo", "d_tau", "b_abeta", "b_hippo", "b_mmse", "b_tau", "c_abeta", "c_hippo", "c_mmse", "c_tau", "sigma_abeta", "sigma_hippo", "sigma_mmse", "sigma_tau", "gamma"))
 ```
 
 ## An Improved Fit with I-Splines
 
-Posterior draws of individual disease progression curves immedietely reveal possible non-linearities in disease progression. While some patients still maintain approximately linear disease progression such as patient 4, others such as 5 or 9 display slow initial progressions then a sharp worsening in the disease. Still yet, other such as patient 7 seem to worsen then have a flattened perior where progression is slow, followed by another quickly progressing epoch.
+Posterior draws of individual disease progression curves immedietely reveal possible non-linearities in disease progression. While some patients still maintain approximately linear disease progression such as patient 4, others such as 5 or 9 display slow initial progressions then a sharp worsening in the disease. Still yet, other such as patient 7 seem to worsen then have a flattened perior where progression is slow, followed by another quickly progressing epoch. These more flexible disease progression curves also manifest in seemingly more accurate biomarker progression curves, leaving us with an overall more trustworthy and robust model.
 
 ```{r, fig.width=10,fig.height=3}
 #repeat earlier progression plots
@@ -338,7 +346,6 @@ adni10 %>%
   geom_point(color = "black") +
   facet_grid(BIOMARKER ~ patient_idx, scales = "free")
 ```
-
 
 
 # References

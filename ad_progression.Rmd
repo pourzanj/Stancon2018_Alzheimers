@@ -1,13 +1,7 @@
 ---
 title: "Flexible Modeling of Alzheimer's Disease Progression with I-Splines"
 author:
-- name: Arya A. Pourzanjani
-- name: Benjamin B. Bales
-- affiliation: University of California, Santa Barbara
-  name: Linda R. Petzold
-- affiliation: Huntington Medical Research Institute
-  name: Michael Harrington
-institute: $^1$University of California, Santa Barbara
+- Arya A. Pourzanjani, Benjamin B. Bales, Linda R. Petzold^[University of California, Santa Barbara], Michael Harrington^[Huntington Medical Research Institute]
 output:
   pdf_document: default
   html_notebook: default
@@ -77,10 +71,10 @@ Existing models of AD progression utilize monotonic functions to capture the con
 While the model of @jedynak2012computational was originally presented in a frequentist least-squares framework, we translated the model to a probabilistic generative model and implemented it in Stan. We then made several expansions to the model to more realistically fit the data, most notably the use of I-splines which we describe in the next section. If we let $y_{ij}(t)$ denote the $j$th biomarker for the $i$th patient at age $t$, the original model of @jedynak2012computational can be translated to the following probabilistic generative model:
 
 $$
-\begin{eqnarray}
-s_i(t) &=& \alpha_i t + \beta_i \\
-y_{ij}(t) &\sim& \mathcal{N}(f(s_i(t)\, |\,  a_j, b_j, c_j, d_j),\sigma_j)
-\end{eqnarray}
+\begin{aligned}
+s_i(t) &= \alpha_i t + \beta_i \\
+y_{ij}(t) &\sim \mathcal{N}(f(s_i(t)\, |\,  a_j, b_j, c_j, d_j),\sigma_j)
+\end{aligned}
 $$
 where $\sigma_j$ represents the error scale for the $j$th biomarker and $f(\cdot| a_j, b_j, c_j, d_j)$ represents a biomarker-specific 4-parameter sigmoid-curve for the $j$th biomarker
 
@@ -95,10 +89,10 @@ In this model, $s_i(t)$ is a monotonically increasing transformation of age that
 We implemented this model in Stan to obtain a baseline model. We note that in the original work of @jedynak2012computational, each patient in the model required at least two observations at different time points so that the parameter $\alpha_i$ was identifiable. In our Stan model, we instead rely on a hierarchical prior over $\alpha_i$ so that we can more flexibly fit those patients with few and even only one observation. This involves the following extension to the model:
 
 $$
-\begin{eqnarray}
-\gamma &\sim& \mathrm{HalfNormal}(0, 10)\\
-\alpha_i &\sim& \mathrm{HalfNormal}(0, \gamma).
-\end{eqnarray}
+\begin{aligned}
+\gamma &\sim \mathrm{HalfNormal}(0, 10)\\
+\alpha_i &\sim \mathrm{HalfNormal}(0, \gamma).
+\end{aligned}
 $$
 
 ### Fitting the Model in Stan
@@ -200,21 +194,21 @@ To our knowledge, the only other known method for flexibly modeling monotone fun
 Given a domain, and a set of nodes $t_1, \cdots, t_D$ on that domain, the I-Spline basis functions are obtained by integrating the piecewise-defined M-Splines, themselves a set of spline functions defined on the same domain using the same nodes. M-Splines are defined recursively. The order 1 M-Spline functions are piecewise constant functions. The $i$th M-Spline of order one is defined as
 
 $$
-\begin{equation}
+\begin{aligned}
 M_{i1}(x) :=
 \begin{cases}
 \frac{1}{(t_{i+1} - t_i)},\; t_i \le x < t_{i+1}\\
 0,\; \mathrm{otherwise}
 \end{cases}
-\end{equation}
+\end{aligned}
 $$
 
 while the $i$th M-Spline of order $k$ is defined recursively as
 
 $$
-\begin{equation}
+\begin{aligned}
 M_{ik}(x) := \left( \frac{k}{k-1} \right) \frac{(x-t_i)M_{i,k-1}(x) + (t_{i+k}-x) M_{i+1,k-1}(x)}{t_{i+k} - t_i}.
-\end{equation}
+\end{aligned}
 $$
 
 One can show that the M-Spline basis functions each integrate to one over the specificed domain and are positive. We plot the M-Spline basis functions for orders $k = 1,2,3,4$ using custom code written to generate M-Splines in R.
@@ -302,7 +296,6 @@ ggplot() +
   stat_function(fun = f, geom = "line", data = data.frame(x = c(-20, 20))) +
   geom_line(aes(x,`50%`),data = posterior_summary, color = "red") +
   geom_ribbon(aes(x, ymin=`2.5%`,ymax=`97.5%`), data = posterior_summary, alpha = 0.2)
-
 ```
 
 # Modeling AD Progression with I-Splines

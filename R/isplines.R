@@ -68,7 +68,7 @@ get_order_4_M_spline_expr <- function(K, nodes) {
   M3_expr <- map(1:(K+2*M-3),M3,ts=nodes,M2_expr = M2_expr, y = y)
   M4_expr <- map(1:(K+2*M-4),M4,ts=nodes,M3_expr = M3_expr, y = y)
   
-  return(list(M1_expr = M1_expr, M2_expr = M2_expr, M3_expr = M3_expr, M4_expr))
+  return(list(M1_expr = M1_expr, M2_expr = M2_expr, M3_expr = M3_expr, M4_expr = M4_expr))
 }
 
 #each function is represented as a list of expr because they are defined piecewise.

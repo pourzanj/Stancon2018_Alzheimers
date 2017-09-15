@@ -31,8 +31,8 @@ adni %>% sample_n(10)
 The biomarkers measured include the following:
 
 * **ABETA**: Concentration of the amyloid-beta protein in cerebrospinal fluid (CSF), measured in pg/ml. In healthy individuals this harmful protein is actively cleared from the brain in to the CSF. In individuals with AD, the amyloid-beta protein concentrates in the brain to form harmful plaques. Low levels in the CSF indicate the protein is not being cleared from the brain, and is thus an indication of AD.
-* **HIPPO**: Volume of the individual's hippocampal brain region as measured by MRI and normalized to their baseline brain volume. In AD the hippocampus is known to shrink in size as the disease progresses. Volume are typically estimated using software applied to images like Figure 2.
-* **MMSE**: Mini-Mental State Examination (MMSE) test. A 30-point questionnaire administered by psycologists to assess working memory and brain function in an individual. Patients with AD show lowered scores in MMSE, but unfortunately lowered MMSE scored typically only show once the disease has progressed significantly.
+* **HIPPO**: Volume of the individual's hippocampal brain region as measured by MRI and normalized to their baseline brain volume. In AD the hippocampus is known to shrink in size as the disease progresses. Volume is typically estimated using software applied to images like Figure 2.
+* **MMSE**: Mini-Mental State Examination (MMSE) test. A 30-point questionnaire administered by psycologists to assess working memory and brain function in an individual. Patients with AD show lower scores in MMSE, but unfortunately lowered MMSE scores typically only show once the disease has progressed significantly.
 * **TAU**: Concentration of tau protein in CSF, measured in pg/ml. Tau is a protein that shows up as a byproduct of dead neurons. High tau in the CSF indicates an abundance of dying neurons in the brain.
 
 ![**Figure 2: Hippocampus of a graduate student, obtained by MRI.**](images/hippocampus.png)
@@ -48,7 +48,7 @@ adni %>%
   geom_histogram() +
   facet_grid(DX ~ BIOMARKER, scales = "free")
 ```
-For clarity and ease of presentation, we focus on 10 specific patients for the remainder of the notebook. We selected these patients to be of different sexes, ages, and stages of AD. Plots of biomarkers generally reveal monotonic trends in time for each patient:
+For clarity and ease of presentation, we focus on 10 specific patients for the remainder of the notebook. We selected these patients to be of different genders, ages, and stages of AD. Plots of biomarkers generally reveal monotonic trends in time for each patient:
 
 ```{r, fig.width=10, warning=FALSE, message=FALSE}
 adni10 <- adni %>% filter(RID %in% c(331,729,835,671,1010,5,16,677,4090,4874))
@@ -64,7 +64,7 @@ adni10 %>%
 
 # Existing Models of Alzheimer's Disease Progression
 
-Existing models of AD progression utilize monotonic functions to capture the continual worsening of biomarkers. @lorenzi2017disease use a monotonic Gaussian Process to model how each biomarker deteriorates over time in the population, and they use ordinary Gaussian Processes for each individual to describe random deviations from this general progression at the individual level. To achieve monotonicity in their Gaussian Processes they use the method proposed by @riihimaki2010gaussian, and fit their model using Expectation Propagation (EP). @jedynak2012computational take a different approach; they posit that the deterioration of individual biomarkers are tied to a single latent state for each patient that increases monotonically over time. This latent variable can thus be used as a disease progression score, representing how far in the disease an individual has progressed. For our analyses we start with this latter model, and add several improvements, including I-Splines.
+Existing models of AD progression utilize monotonic functions to capture the continual worsening of biomarkers. @lorenzi2017disease use a monotonic Gaussian Process to model how each biomarker deteriorates over time in the population, and they use ordinary Gaussian Processes for each individual to describe random deviations from this general progression at the individual level. To achieve monotonicity in their Gaussian Processes they use the method proposed by @riihimaki2010gaussian, and fit their model using Expectation Propagation (EP). @jedynak2012computational take a different approach; they posit that the deterioration of individual biomarkers is tied to a single latent state for each patient that increases monotonically over time. This latent variable can thus be used as a disease progression score, representing how far in the disease an individual has progressed. For our analyses we start with this latter model, and add several improvements, including I-Splines.
 
 ## Linear Latent Progression Model
 
@@ -82,7 +82,7 @@ $$
 f(s\,|\, a_j, b_j, c_j, d_j) = \frac{a_j}{1+e^{-b_j s- c_j}} + d_j.
 $$
 
-The parameters $c_j$ and $b_j$ are of particular importance because they indicate when a biomarker starts deteriorating and how fast it deteriorates once it does. The form of the degradation of the biomarkers takes the form of a logistic (or S-curve) because in practice biomarkers like ABETA and HIPPO seem to get worse slowly at first, then rapidly, and eventually hit a saturation point they do not seem to worsen.
+The parameters $c_j$ and $b_j$ are of particular importance because they indicate when a biomarker starts deteriorating and how fast it deteriorates once it does. The form of the degradation of the biomarkers takes the form of a logistic (or S-curve) because in practice biomarkers like ABETA and HIPPO seem to get worse slowly at first, then rapidly, and eventually hit a saturation point.
 
 In this model, $s_i(t)$ is a monotonically increasing transformation of age that represents a continuous disease progression score for the $i$th individual. The individual specific parameters $\alpha_i$ and $\beta_i$ determine the rate of progression and relative onset of AD respectively for the $i$th individual. To ensure the progression variable $s_i(t)$ is monotonic in time, $\alpha_i$ is constrained to be positive.
 
@@ -115,7 +115,7 @@ linear_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abet
 
 ### Posterior Analysis of Biomarker Comparisons
 
-The model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioation ($b$). For this model one of the biomarker had to have fixed values for b and c, to ensure identifiability of the parameters. We chose ABETA to have $b = 1$ and $c=0$. From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU There is far too much posterior uncertainty to tell when the drop off starts. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE beging to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
+The model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioation ($b$). For this model one of the biomarkers has to have fixed values for b and c, to ensure identifiability of the parameters. We chose ABETA to have $b = 1$ and $c=0$. From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU there is far too much posterior uncertainty to tell when the drop off starts. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE beging to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
 
 ```{r, message= FALSE, warning=FALSE}
 #extract posterior samples in to tibbles with the correct column names
@@ -130,8 +130,8 @@ posterior_plots_bc <- posterior_samples_bc %>%
   map(function(s) s %>% ggplot(aes(Value, group = Biomarker, fill = Biomarker)) + geom_density())
 
 #reveal plots
-posterior_plots_bc$b + ggtitle("b: Rate of Biomarker Degradation") + ylab("Estimated Posterior Density")
-posterior_plots_bc$c + xlim(0,20) + ggtitle("c: Relative Onset of Biomarker Degradation") + ylab("Estimated Posterior Density")
+posterior_plots_bc$b + xlab("b (Rate of Biomarker Degradation)") + ylab("Estimated Posterior Density")
+posterior_plots_bc$c + xlim(0,20) + xlab("c (Relative Onset of Biomarker Degradation)") + ylab("Estimated Posterior Density")
 ```
 
 ### Posterior Analysis of Model Fit
@@ -181,7 +181,7 @@ adni10 %>%
   facet_grid(BIOMARKER ~ patient_idx, scales = "free") +
   scale_color_discrete(name = "Patient ID")
 ```
-The linear fit does a reasonable job of capturing each individuals progression of biomarkers over time. However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients' disease statuses continuosly progress at the same rate. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need to be able to flexibly model monotonic functions of age. For this we turn to I-Splines.
+The linear fit does a reasonable job of capturing each individual's progression of biomarkers over time. However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients' disease status continuosly progress at the same rate. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need to be able to flexibly model monotonic functions of age. For this we turn to I-Splines.
 
 # I-Splines
 
@@ -191,7 +191,7 @@ To our knowledge, the only other known method for flexibly modeling monotone fun
 
 ## M-Splines
 
-Given a domain, and a set of nodes $t_1, \cdots, t_D$ on that domain, the I-Spline basis functions are obtained by integrating the piecewise-defined M-Splines, themselves a set of spline functions defined on the same domain using the same nodes. M-Splines are defined recursively. The order 1 M-Spline functions are piecewise constant functions. The $i$th M-Spline of order one is defined as
+Given a domain, and a set of nodes $t_1, \cdots, t_D$ on that domain, the I-Spline basis functions are obtained by integrating the piecewise-defined M-Splines, themselves a set of spline functions defined on the same domain using the same nodes. M-Splines are defined recursively. The order one M-Spline functions are piecewise constant functions. The $i$th M-Spline of order one is defined as
 
 $$
 \begin{aligned}
@@ -315,7 +315,7 @@ ispline_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abe
 
 ## An Improved Fit with I-Splines
 
-Posterior draws of individual disease progression curves immedietely reveal possible non-linearities in disease progression. While some patients still maintain approximately linear disease progression such as patient 4, others such as 5 or 9 display slow initial progressions then a sharp worsening in the disease. Still yet, other such as patient 7 seem to worsen then have a flattened perior where progression is slow, followed by another quickly progressing epoch. These more flexible disease progression curves also manifest in seemingly more accurate biomarker progression curves, leaving us with an overall more trustworthy and robust model.
+Posterior draws of individual disease progression curves immedietely reveal possible non-linearities in disease progression. While some patients still maintain approximately linear disease progression such as patient 4, others such as 5 or 9 display slow initial progressions then a sharp worsening in the disease. Others, such as patient 7 seem to worsen then have a flattened perior where progression is slow, followed by another quickly progressing epoch. These more flexible disease progression curves also manifest in seemingly more accurate biomarker progression curves, leaving us with an overall more trustworthy and robust model.
 
 ```{r, fig.width=10,fig.height=3}
 #repeat earlier progression plots

@@ -318,8 +318,8 @@ With I-Splines in our toolbelt, we can finally expand the linear latent progress
 ```{r,comment=NA}
 library(rstan)
 
-ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000,refresh=20,
-                                control = list(adapt_delta = 0.9, max_treedepth = 14))
+ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000,refresh=1000,
+                                control = list(adapt_delta = 0.99, max_treedepth = 14))
 
 ispline_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abeta", "d_hippo", "d_tau", "b_abeta", "b_hippo", "b_mmse", "b_tau", "c_abeta", "c_hippo", "c_mmse", "c_tau", "sigma_abeta", "sigma_hippo", "sigma_mmse", "sigma_tau", "gamma"))
 ```

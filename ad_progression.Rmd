@@ -87,6 +87,8 @@ The parameters $c_j$ and $b_j$ are of particular importance because they indicat
 
 In this model, $s_i(t)$ is a monotonically increasing transformation of age that represents a continuous disease progression score for the $i$th individual. The individual specific parameters $\alpha_i$ and $\beta_i$ determine the rate of progression and relative onset of AD respectively for the $i$th individual. To ensure the progression variable $s_i(t)$ is monotonic in time, $\alpha_i$ is constrained to be positive.
 
+We note that in this model the parameters of individual biomarker evolution are not allowed to vary from individual to individual, only the latent disease progression score. This implies that the degradation of the biomarkers all happen in the same relative order and relative rate in all patients, an assumption that would have to be properly verified by examining the relative rates of deterioration in individuals.
+
 We implemented this model in Stan to obtain a baseline model. We note that in the original work of @jedynak2012computational, each patient in the model required at least two observations at different time points so that the parameter $\alpha_i$ was identifiable. In our Stan model, we instead rely on a hierarchical prior over $\alpha_i$ so that we can more flexibly fit those patients with few and even only one observation. This involves the following extension to the model:
 
 $$
@@ -348,8 +350,10 @@ adni10 %>%
 
 # Future Directions
 
-* **Model individual responses in MMSE separately**: Rather than using the MMSE score at face value, it may be more prudent to model the response to individual questions on the MMSE, since the MMSE score could be calculated in an arbitrary way. This was done in in the Alzheimers setting by @vandemeulebroecke2017longitudinal.
+* **Model individual responses in MMSE separately**: Rather than using the MMSE score at face value, it may be more prudent to model the response to individual questions on the MMSE using the tools of Item Response Theory (IRT), since the MMSE score could be calculated in an arbitrary way. This was done in in the Alzheimers setting by @vandemeulebroecke2017longitudinal.
 
-* **Model the distribution of ABETA as a mixture of Gaussians**: The bimodal nature of the population histograms of ABETA suggest that the value advances from a health Gaussian mode, to an unhealthy one as AD progresses, rather than evolving continuously as a sigmoid might suggest. Depending on how individual time series of ABETA appear, and domain knowledge, we may decide to model ABETA as a mixture whose mixture probability is governed by the latent disease progression via a logistic regression. 
+* **Model the distribution of ABETA as a mixture of Gaussians**: The bimodal nature of the population histograms of ABETA suggest that the value advances from a health Gaussian mode, to an unhealthy one as AD progresses, rather than evolving continuously as a sigmoid might suggest. Depending on how individual time series of ABETA appear, and domain knowledge, we may decide to model ABETA as a mixture whose mixture probability is governed by the latent disease progression via a logistic regression.
+
+* **Allow variability in the biomarker progression parameters at the individual level**: We may want to examine the literature and our data to see whether progression of the various biomarkers could occur in a different order or at different relative rates depending on the patient. One possible cause of a different ordering of biomarker degradation could be differing types of dementia such as vascular dementia, as oppose to AD.
 
 # References

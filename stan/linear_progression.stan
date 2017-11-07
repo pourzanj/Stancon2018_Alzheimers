@@ -122,10 +122,18 @@ generated quantities {
   vector[81] grid;
   real shat[N,81];
   real fhat[N,K,81];
+  
+  real muhat[tot_obs];
+  real yhat[tot_obs];
+  real s[tot_obs] = to_array_1d(alpha[patient_idx] .* age + beta[patient_idx]);
+  
   for(i in 1:81) grid[i] = -20 + 0.5*(i-1);
   for(n in 1:N) {
     shat[n,] = to_array_1d(alpha[n]*grid + rep_vector(beta[n],81));
     for(k in 1:K)
       fhat[n,k,] = f(to_array_1d(alpha[n]*grid+beta[n]),rep_array(a[k], 81),rep_array(b[k], 81),rep_array(c[k], 81),rep_array(d[k], 81));
   }
+  
+  muhat = f(s, a[biomarker_idx], b[biomarker_idx], c[biomarker_idx], d[biomarker_idx]);
+  for(n in 1:tot_obs) yhat[n] = normal_rng(muhat[n], sigma[biomarker_idx][n]);
 }

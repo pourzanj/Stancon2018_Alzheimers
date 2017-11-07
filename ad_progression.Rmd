@@ -12,13 +12,13 @@ bibliography: ref.bib
 
 The progression of Alzheimer's Disease (AD) is characterized by the gradual deterioration of biomarkers and eventual loss of basic memory and decision-making functions (Figure 1). Using these biomarker values and other tests to estimate how far an individual has progressed in the disease is valuable in diagnosis as well as in assessing the efficacy of interventions. Additionally, prediction of how the individual will continue to progress is critical in decision making. While it is known that AD only gets worse over time, it is believed that patients with the disease progress at different rates and at different stages of their lives. There is no standard path of progression for people with the disease, which makes estimation of disease severity and future progression difficult. In addition to estimating these paths for an individual given their measurements, it is of clinical and biological significance to be able to understand the order in which certain biomarkers begin to deteriorate and what their distribution might look like for various stages of the disease.
 
-![**Figure 1: As AD continuosly progresses, various testable biomarkers begin to degrade in unison, usually following an S-like pattern where degradation is initially slow, then rapidly progresses, then eventually levels out.**](images/disease_progression_modeling.png)
+![**Figure 1: Any patient test, such as a blood test, written exam, or MRI, can constitute a biomarker. As AD continuosly progresses, various biomarkers begin to degrade in unison, usually following an S-like pattern where degradation is initially slow, then rapidly progresses, then eventually levels out.**](images/disease_progression_modeling.png)
 
 To accomplish these tasks, we introduce a probabilistic model that includes a latent, monotonically increasing variable that measures the continually worsening progression of AD in an individual given their biomarker values. To flexibly model this monotonically increasing progression, we used a basis of monotonic functions, known as I-splines. The model also describes how, and in what order the biomarker values deteriorate over the progression of AD. We illustrate how we fit the model in Stan to real patient data to realistically capture the progression of AD.
 
 # Data and Exploratory Analysis
 
-To simplify our notebook, we used a pre-cleaned tibble of biomarker data from the publicly available Alzheimer's Disease Neuroimaging Initiative (ADNI) dataset. The tibble contains various biomarker measurements for 1,737 patients, as well as their age at the time of measurement.
+To simplify our notebook, we used a pre-cleaned tibble of biomarker data from the publicly available Alzheimer's Disease Neuroimaging Initiative (ADNI) dataset. The tibble (tidyverse dataframe) contains various biomarker measurements for 1,737 patients, as well as their age at the time of measurement.
 
 ```{r}
 library(tidyverse)
@@ -49,7 +49,7 @@ adni %>%
   geom_histogram() +
   facet_grid(DX ~ BIOMARKER, scales = "free")
 ```
-For clarity and ease of presentation, we focus on 10 specific patients for the remainder of the notebook. We selected these patients to be of different genders, ages, and stages of AD. Plots of biomarkers generally reveal monotonic trends in time for each patient:
+For clarity and graphical ease, we focus on 10 specific patients for the remainder of the notebook. We selected these patients to be of different genders, ages, and stages of AD. Plots of biomarkers generally reveal monotonic trends in time for each patient:
 
 ```{r, fig.width=10, warning=FALSE, message=FALSE}
 adni10 <- adni %>% filter(RID %in% c(331,729,835,671,1010,5,16,677,4090,4874))
@@ -89,7 +89,7 @@ In this model, $s_i(t)$ is a monotonically increasing transformation of age that
 
 We note that in this model the parameters of individual biomarker evolution are not allowed to vary from individual to individual, only the latent disease progression score. This implies that the degradation of the biomarkers all happen in the same relative order and relative rate in all patients, an assumption that would have to be properly verified by examining the relative rates of deterioration in individuals.
 
-We implemented this model in Stan to obtain a baseline model. We note that in the original work of @jedynak2012computational, each patient in the model required at least two observations at different time points so that the parameter $\alpha_i$ was identifiable. In our Stan model, we instead rely on a hierarchical prior over $\alpha_i$ so that we can more flexibly fit those patients with few and even only one observation. This involves the following extension to the model:
+We implemented this model in Stan to obtain a baseline model. We note that in the original work of @jedynak2012computational, each patient in the model required at least two observations at different time points so that the parameter $\alpha_i$ was identifiable. In our Stan model, we instead rely on a hierarchical prior over $\alpha_i$ so that we can more flexibly fit those patients with few and even only one observation. We think the hierarchical normal prior is a valid modeling choice because we expect individual progressions to not vary too widely from one another, i.e. the distribution should not be heavy-tailed. Furthermore, human population characteristics are often normally distributed, and we have no reason to believe the progressions parameters are multi-modal. This involves the following extension to the model:
 
 $$
 \begin{aligned}
@@ -120,7 +120,7 @@ linear_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abet
 
 ### Posterior Analysis of Biomarker Comparisons
 
-The model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioration ($b$). From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU there is far too much posterior uncertainty to tell when the drop off starts. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE begin to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
+After ensuring reasonable Rhat values, and no divergences or other warnings, we see that the model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioration ($b$). From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU there is far too much posterior uncertainty to tell when the drop off starts. This could be due to model miss-specification in how TAU is modeled. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE begin to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
 
 ```{r, message= FALSE, warning=FALSE}
 #extract posterior samples in to tibbles with the correct column names
@@ -177,22 +177,27 @@ sample_to_grid <- function(fhat_sample_i) map(1:dim(fhat_posterior_samples)[2], 
 
 master_grid <- map(1:dim(fhat_posterior_samples)[1], function(i) sample_to_grid(fhat_posterior_samples[i,,,]) %>% mutate(sample_num = i)) %>% bind_rows
 
+#extract posterior predicted samples
+yhat_posterior_samples <- (linear_progression_fit %>% rstan::extract(pars = "yhat"))$yhat[500,]
+
 adni10 %>%
+  mutate(yhat = yhat_posterior_samples) %>%
   mutate(patient_idx = as.integer(as.factor(RID))) %>%
   mutate(AGE = AGE - mean(AGE)) %>%
   ggplot(aes(AGE, VALUE, color = as.factor(patient_idx))) +
   geom_line(aes(grid, yhat, group = sample_num), alpha = 0.1, data = master_grid) +
+  geom_point(aes(AGE,yhat),color = "grey50", alpha = 0.5) +
   geom_point(color = "black") +
   facet_grid(BIOMARKER ~ patient_idx, scales = "free") +
   scale_color_discrete(name = "Patient ID")
 ```
-The linear fit does a reasonable job of capturing each individual's progression of biomarkers over time. However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients' disease status continuously progress at the same rate. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need to be able to flexibly model monotonic functions of age. For this we turn to I-Splines.
+The linear fit does a reasonable job of capturing each individual's progression of biomarkers over time (posterior predictive points in grey). However, the linear disease progression model leaves much to be desired. The model assumes that the rate of progression of the disease is constant, i.e. that patients' disease status continuously progress at the same rate. In reality, it is probably the case that there are plateaus of AD progression, where progression can slow down then later pick back up either due to endogenous or exogenous circumstances. To more flexibly represent disease progression curves we need to be able to flexibly model monotonic functions of age. For this we turn to I-Splines.
 
 # I-Splines
 
 I-Splines are a flexible and adjustable set of monotone basis functions used to model monotonic functions [@ramsay1988monotone]. By taking a linear combination of these functions, and constraining the coefficients to be positive, one can flexibly model a wide class of monotone functions. Similarly, one can model increasing functions with a range from 0 to 1, by taking a linear combination of the I-Splines where the coefficients are constrained to sum to one.
 
-To our knowledge, the only other known method for flexibly modeling monotone functions are monotone Gaussian Processes [@riihimaki2010gaussian], which were used by @lorenzi2017disease. This method relies on constraining the Gaussian Process to have a positive derivative at a set number of points, which then usually forces the function to monotone. While attractive, the method may not return true monotone functions and it is not clear how to select the points where the derivative should be positive. Furthermore, monotone Gaussian Processes are inferred using EP, whereas for our goals we sought to implement our model in Stan and infer using HMC, to obtain samples from the true posterior distribution of our parameters.
+To our knowledge, the only other known method for flexibly modeling monotone functions are monotone Gaussian Processes [@riihimaki2010gaussian], which were used by @lorenzi2017disease. This method relies on constraining the Gaussian Process to have a positive derivative at a set number of points, which then usually forces the function to monotone. While attractive, the method may not return true monotone functions and it is not clear how to select the points where the derivative should be positive.
 
 ## M-Splines
 
@@ -313,7 +318,8 @@ With I-Splines in our toolbelt, we can finally expand the linear latent progress
 ```{r,comment=NA}
 library(rstan)
 
-ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000,refresh=1000)
+ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000,refresh=20,
+                                control = list(adapt_delta = 0.9, max_treedepth = 14))
 
 ispline_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abeta", "d_hippo", "d_tau", "b_abeta", "b_hippo", "b_mmse", "b_tau", "c_abeta", "c_hippo", "c_mmse", "c_tau", "sigma_abeta", "sigma_hippo", "sigma_mmse", "sigma_tau", "gamma"))
 ```
@@ -340,11 +346,16 @@ master_grid_s %>%
 fhat_posterior_samples <- (ispline_progression_fit %>% rstan::extract(pars = "fhat"))$fhat[sample(1:1000,100),,,]
 master_grid <- map(1:dim(fhat_posterior_samples)[1], function(i) sample_to_grid(fhat_posterior_samples[i,,,]) %>% mutate(sample_num = i)) %>% bind_rows
 
+#extract posterior predicted samples
+yhat_posterior_samples <- (ispline_progression_fit %>% rstan::extract(pars = "yhat"))$yhat[500,]
+
 adni10 %>%
+  mutate(yhat = yhat_posterior_samples) %>%
   mutate(patient_idx = as.integer(as.factor(RID))) %>%
   mutate(AGE = AGE - mean(AGE)) %>%
   ggplot(aes(AGE, VALUE, color = as.factor(patient_idx))) +
   geom_line(aes(grid, yhat, group = sample_num), alpha = 0.1, data = master_grid) +
+  geom_point(aes(AGE,yhat),color = "grey50", alpha = 0.5) +
   geom_point(color = "black") +
   facet_grid(BIOMARKER ~ patient_idx, scales = "free") +
   scale_color_discrete(name = "Patient ID")

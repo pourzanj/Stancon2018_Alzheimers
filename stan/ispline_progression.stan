@@ -339,7 +339,7 @@ parameters {
   //each patient has a positive linear combination, beta,
   //of the I-splines. Each of these coefficients, respectively
   //follow a hierarchical prior
-  matrix<lower=0>[N,13] beta;
+  matrix<lower=0>[N,13] beta_raw;
   real<lower=0> gamma[13];
 }
 transformed parameters {
@@ -348,6 +348,7 @@ transformed parameters {
   real<lower=0, upper=10> b[K];
   real c[K];
   real<lower=0> sigma[K];
+  matrix<lower=0>[N,13] beta;
   
   //each observation will now have a sigma
   //that depends on the biomarker being measured
@@ -386,6 +387,9 @@ transformed parameters {
     if(biomarker_idx[obs] == 1) sigma_obs[obs] = sigma_abeta[patient_idx[obs]];
     else sigma_obs[obs] = sigma[biomarker_idx[obs]]; 
   }
+  
+  for(i in 1:13) beta[,i] = beta_raw[,i]*gamma[i];
+  
 }
 model {
   real s[tot_obs] = ispline(age, beta[patient_idx]);
@@ -397,7 +401,7 @@ model {
 
   //hierarchical prior
   gamma ~ normal(0,10);
-  for(i in 1:13) beta[,i] ~ normal(0,gamma[i]);
+  for(i in 1:13) beta_raw[,i] ~ normal(0,1);
   
   a_abeta ~ normal(-110, 20);
   a_hippo ~ normal(-0.19,0.1);
@@ -421,10 +425,18 @@ generated quantities {
   vector[81] grid;
   real fhat[N,K,81];
   real shat[N,81];
+  
+  real muhat[tot_obs];
+  real yhat[tot_obs];
+  real s[tot_obs] = ispline(age, beta[patient_idx]);
+  
   for(i in 1:81) grid[i] = -20 + 0.5*(i-1);
   for(n in 1:N) {
     shat[n,] = ispline(grid, beta[rep_array(n, 81)]);
     for(k in 1:K)
       fhat[n,k,] = f(ispline(grid, beta[rep_array(n, 81)]),rep_array(a[k], 81),rep_array(b[k], 81),rep_array(c[k], 81),rep_array(d[k], 81));
   }
+  
+  muhat = f(s, a[biomarker_idx], b[biomarker_idx], c[biomarker_idx], d[biomarker_idx]);
+  for(n in 1:tot_obs) yhat[n] = normal_rng(muhat[n], sigma_obs[n]);
 }

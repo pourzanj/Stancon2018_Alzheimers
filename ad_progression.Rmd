@@ -83,7 +83,7 @@ $$
 f(s\,|\, a_j, b_j, c_j, d_j) = \frac{a_j}{1+e^{-b_j s- c_j}} + d_j.
 $$
 
-The parameters $c_j$ and $b_j$ are of particular importance because they indicate when a biomarker starts deteriorating and how fast it deteriorates once it does. The form of the degradation of the biomarkers takes the form of a logistic (or S-curve) because in practice biomarkers like ABETA and HIPPO seem to get worse slowly at first, then rapidly, and eventually hit a saturation point.
+The parameters $c_j$ and $b_j$ are of particular importance because they indicate when a biomarker starts deteriorating and how fast it deteriorates once it does. The form of the degradation of the biomarkers takes the form of a logistic (or S-curve) because in practice biomarkers like ABETA and HIPPO seem to get worse slowly at first, then rapidly, and eventually hit a saturation point. We note that one of the biomarkers has to have fixed values for b and c, to ensure identifiability of the parameters. We chose ABETA to have $b = 1$ and $c=0$.
 
 In this model, $s_i(t)$ is a monotonically increasing transformation of age that represents a continuous disease progression score for the $i$th individual. The individual specific parameters $\alpha_i$ and $\beta_i$ determine the rate of progression and relative onset of AD respectively for the $i$th individual. To ensure the progression variable $s_i(t)$ is monotonic in time, $\alpha_i$ is constrained to be positive.
 
@@ -98,9 +98,11 @@ $$
 \end{aligned}
 $$
 
+We use a weakly informative scale parameter of 10 in the hyperparameter, as we do not have much prior information on what the scale of the $\alpha_i$ parameter should be.
+
 ### Fitting the Model in Stan
 
-```{r, message=TRUE}
+```{r, message=TRUE,comment=NA}
 library(rstan)
 
 dat <- list(N = adni10 %>% pull(RID) %>% unique %>% length,
@@ -111,14 +113,14 @@ dat <- list(N = adni10 %>% pull(RID) %>% unique %>% length,
             age = adni10 %>% pull(AGE) %>% (function(x) x - mean(x)),
             y = adni10 %>% pull(VALUE))
 
-linear_progression_fit <- stan("stan/linear_progression.stan", data = dat, chains = 1, iter = 2000)
+linear_progression_fit <- stan("stan/linear_progression.stan", data = dat, chains = 1, iter = 2000,refresh=1000)
 
 linear_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abeta", "d_hippo", "d_tau", "b_hippo", "b_mmse", "b_tau", "c_hippo", "c_mmse", "c_tau", "sigma_abeta", "sigma_hippo", "sigma_mmse", "sigma_tau", "gamma"))
 ```
 
 ### Posterior Analysis of Biomarker Comparisons
 
-The model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioration ($b$). For this model one of the biomarkers has to have fixed values for b and c, to ensure identifiability of the parameters. We chose ABETA to have $b = 1$ and $c=0$. From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU there is far too much posterior uncertainty to tell when the drop off starts. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE begin to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
+The model fit reveals the relative order of biomarker degradation onset ($c$) and the speed of deterioration ($b$). From posterior histograms of $c$, we can see that relative to the onset of worsening of ABETA, HIPPO seems to start deteriorating about 3 years later, while MMSE starts to deteriorate about 5 years later. For TAU there is far too much posterior uncertainty to tell when the drop off starts. While ABETA begins to deteriorate the earliest of the biomarkers, when HIPPO and MMSE begin to deteriorate, they seem to do so much faster, according to posterior histograms of $b$.
 
 ```{r, message= FALSE, warning=FALSE}
 #extract posterior samples in to tibbles with the correct column names
@@ -269,7 +271,7 @@ ggplot(aes(x), data = tibble(x = c(-20,20))) +
 
 We use custom code from the file isplines.R to convert the symbolic expressions, M4_expr into Stan code so that we can copy and paste the code in to Stan (see the functions expr_to_stan_str and linear_combination_stan). Using this we can infer monotonic functions in Stan. We draw from a uniform Dirichlet distribution a set of coefficients, use these as coefficients of the I-Splines to create a monotonic function, then create noisy observations of the function using Gaussian noise. We then infer the monotonic function from the resulting data using I-Splines in Stan.
 
-```{r}
+```{r,comment=NA}
 #create random monotonic function
 #we use a fixed draw and a set seed for consistency
 #s <- rdirichlet(1, rep(1,D))
@@ -287,7 +289,7 @@ ggplot(sim, aes(x,y)) + geom_point() + stat_function(fun = f)
 
 #fit in Stan
 dat_ispline <- list(N = N, x = sim$x, y = sim$y)
-fit <- stan("stan/isplines.stan", data = dat_ispline, chains = 1, iter = 1000)
+fit <- stan("stan/isplines.stan", data = dat_ispline, chains = 1, iter = 1000,refresh=1000)
 
 posterior_summary <- (summary(fit, pars = "fhat")$summary)[,c("2.5%", "50%", "97.5%")] %>%
   as_tibble %>%
@@ -308,10 +310,10 @@ With I-Splines in our toolbelt, we can finally expand the linear latent progress
 1. We replace the latent disease progression function, $s_i(t)$, to be a positive linear combination of I-Splines rather than a linear function.
 2. We let the measurement variability of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots suggest that the random variation in these measurements may differ in magnitude from person to person. 
 
-```{r}
+```{r,comment=NA}
 library(rstan)
 
-ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000)
+ispline_progression_fit <- stan("stan/ispline_progression.stan", data = dat, chains = 1, iter = 2000,refresh=1000)
 
 ispline_progression_fit %>% print(pars = c("a_abeta", "a_hippo", "a_tau", "d_abeta", "d_hippo", "d_tau", "b_abeta", "b_hippo", "b_mmse", "b_tau", "c_abeta", "c_hippo", "c_mmse", "c_tau", "sigma_abeta", "sigma_hippo", "sigma_mmse", "sigma_tau", "gamma"))
 ```

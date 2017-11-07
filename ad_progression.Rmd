@@ -3,8 +3,8 @@ title: "Flexible Modeling of Alzheimer's Disease Progression with I-Splines"
 author:
 - Arya A. Pourzanjani, Benjamin B. Bales, Linda R. Petzold^[University of California, Santa Barbara], Michael Harrington^[Huntington Medical Research Institute]
 output:
-  pdf_document: default
   html_notebook: default
+  pdf_document: default
 bibliography: ref.bib
 ---
 
@@ -22,6 +22,7 @@ To simplify our notebook, we used a pre-cleaned tibble of biomarker data from th
 
 ```{r}
 library(tidyverse)
+library(dplyr)
 
 #load pre-cleaned tibble and preview
 load("data/adni_precleaned.Rdata")
@@ -76,7 +77,7 @@ s_i(t) &= \alpha_i t + \beta_i \\
 y_{ij}(t) &\sim \mathcal{N}(f(s_i(t)\, |\,  a_j, b_j, c_j, d_j),\sigma_j)
 \end{aligned}
 $$
-where $\sigma_j$ represents the error scale for the $j$th biomarker and $f(\cdot| a_j, b_j, c_j, d_j)$ represents a biomarker-specific 4-parameter sigmoid-curve for the $j$th biomarker
+where $\sigma_j$ represents the measurement variability for the $j$th biomarker and $f(\cdot| a_j, b_j, c_j, d_j)$ represents a biomarker-specific 4-parameter sigmoid-curve for the $j$th biomarker
 
 $$
 f(s\,|\, a_j, b_j, c_j, d_j) = \frac{a_j}{1+e^{-b_j s- c_j}} + d_j.
@@ -303,7 +304,7 @@ ggplot() +
 With I-Splines in our toolbelt, we can finally expand the linear latent progression model to a more flexible latent progression using I-Splines. We make the following improvements to the linear progression model:
 
 1. We replace the latent disease progression function, $s_i(t)$, to be a positive linear combination of I-Splines rather than a linear function.
-2. We let the standard error of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots suggest that the random variation in these measurements may differ in magnitude from person to person. 
+2. We let the measurement variability of the ABETA measurements be different for each individual, and place a hierarchical prior over these parameters. The biomarker plots suggest that the random variation in these measurements may differ in magnitude from person to person. 
 
 ```{r}
 library(rstan)
@@ -345,5 +346,10 @@ adni10 %>%
   scale_color_discrete(name = "Patient ID")
 ```
 
+# Future Directions
+
+* **Model individual responses in MMSE separately**: Rather than using the MMSE score at face value, it may be more prudent to model the response to individual questions on the MMSE, since the MMSE score could be calculated in an arbitrary way. This was done in in the Alzheimers setting by @vandemeulebroecke2017longitudinal.
+
+* **Model the distribution of ABETA as a mixture of Gaussians**: The bimodal nature of the population histograms of ABETA suggest that the value advances from a health Gaussian mode, to an unhealthy one as AD progresses, rather than evolving continuously as a sigmoid might suggest. Depending on how individual time series of ABETA appear, and domain knowledge, we may decide to model ABETA as a mixture whose mixture probability is governed by the latent disease progression via a logistic regression. 
 
 # References
